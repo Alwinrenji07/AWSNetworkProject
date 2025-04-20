@@ -1,0 +1,67 @@
+- name: Configure EC2 instance
+  hosts: web
+  become: yes
+  tasks:
+    - name: Update APT cache and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install dependencies for Docker
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+        filename: docker
+
+    - name: Update APT cache after adding Docker repo
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker-ce
+        state: present
+
+    - name: Enable Docker on boot
+      systemd:
+        name: docker
+        enabled: yes
+
+    - name: Start Docker
+      systemd:
+        name: docker
+        state: started
+    - name: Copy Docker app to EC2
+      copy:
+          src: ../docker-app/
+          dest: /home/ubuntu/docker-app/
+          owner: ubuntu
+          group: ubuntu
+          mode: 0755
+
+    - name: Build Docker image
+      command: docker build -t my-nginx /home/ubuntu/docker-app
+
+    - name: Run Docker container
+      docker_container:
+        name: web_app
+        image: my-nginx
+        ports:
+           - "80:80"
+        state: started
+        restart_policy: always
